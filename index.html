@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I'm hungry | Admin Panel</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&display=swap');
+        body { font-family: 'Hind Siliguri', sans-serif; background-color: #f8f9fa; scroll-behavior: smooth; }
+        .hidden-section { display: none; content-visibility: hidden; }
+        .sidebar-active { border-left: 4px solid #ef4444; background: #fee2e2; color: #b91c1c; }
+        
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #ef4444; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        
+        #map { height: 500px; width: 100%; border-radius: 1.5rem; z-index: 1; border: 4px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .order-filter-active { background-color: #ef4444 !important; color: white !important; }
+
+        /* Style to match your screenshot */
+        .res-card { transition: all 0.2s; border-bottom: 1px solid #f3f4f6; }
+        .res-card:last-child { border-bottom: none; }
+        .res-fee-badge { cursor: pointer; transition: transform 0.1s; }
+        .res-fee-badge:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+    <audio id="order-sound" preload="auto" loop>
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="alarm-overlay" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[200] flex justify-between items-center shadow-lg">
+        <p class="font-bold flex items-center gap-2"><i class="fas fa-bell animate-bounce"></i> New Order Received!</p>
+        <button onclick="stopAlarm()" class="bg-white text-red-600 px-6 py-2 rounded-full font-black text-sm">Stop Alarm</button>
+    </div>
+
+    <div id="order-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-[250] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b flex justify-between items-center bg-red-600 text-white">
+                <h3 class="text-xl font-black"><i class="fas fa-receipt mr-2"></i>Order details</h3>
+                <button onclick="closeOrderModal()" class="text-white hover:text-gray-200 text-2xl font-bold">&times;</button>
+            </div>
+            <div id="order-details-content" class="p-6 overflow-y-auto bg-gray-50 grow"></div>
+            <div class="p-4 border-t bg-white text-center">
+                <button onclick="closeOrderModal()" class="bg-gray-800 text-white w-full py-3 rounded-xl font-bold hover:bg-gray-900 shadow-lg text-lg">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="login-screen" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50 px-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border-t-8 border-red-600">
+            <h2 class="text-3xl font-bold text-center text-red-600 mb-2">Admin Login</h2>
+            <p class="text-center text-gray-400 text-sm mb-6 font-bold">KHIDE LAGCHE Admin</p>
+            <input type="email" id="admin-email" placeholder="Email" class="w-full p-4 mb-4 border rounded-xl outline-none focus:ring-2 focus:ring-red-500">
+            <input type="password" id="admin-pass" placeholder="Password" class="w-full p-4 mb-4 border rounded-xl outline-none focus:ring-2 focus:ring-red-500">
+            <button onclick="adminLogin()" class="w-full bg-red-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-red-700">Login</button>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden min-h-screen flex flex-col md:flex-row">
+        <!-- Sidebar -->
+        <div class="w-full md:w-64 bg-white shadow-md z-10 flex-shrink-0 flex flex-col justify-between">
+            <div>
+                <div class="p-6 border-b">
+                    <h1 class="text-2xl font-black text-red-600 italic">KHIDE LAGCHE</h1>
+                </div>
+                <nav class="mt-4">
+                    <button onclick="showSection('dashboard')" id="btn-dashboard" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 sidebar-active"><i class="fas fa-chart-line"></i> Dashboard</button>
+                    <button onclick="showSection('orders')" id="btn-orders" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-shopping-bag"></i> Orders</button>
+                    <button onclick="showSection('map')" id="btn-map" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-map-location-dot"></i> Live Map</button>
+                    <button onclick="showSection('restaurants')" id="btn-restaurants" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-utensils"></i> Restaurants</button>
+                    <button onclick="showSection('customers')" id="btn-customers" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-users"></i> Customers</button>
+                    <button onclick="showSection('riders')" id="btn-riders" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-motorcycle"></i> Riders</button>
+                    <button onclick="showSection('requests')" id="btn-requests" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-user-plus"></i> Requests</button>
+                    <button onclick="showSection('notifications')" id="btn-notifications" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-paper-plane"></i> Notifications</button>
+                    <button onclick="showSection('settings')" id="btn-settings" class="nav-btn w-full text-left px-6 py-3 flex items-center gap-3 text-gray-700"><i class="fas fa-cog"></i> Settings</button>
+                </nav>
+            </div>
+            
+            <div class="border-t mb-4">
+                <button onclick="window.location.reload()" class="w-full text-left px-6 py-3 flex items-center gap-3 text-blue-600 font-bold hover:bg-blue-50">
+                    <i class="fas fa-sync-alt"></i> Refresh Panel
+                </button>
+                <button onclick="logout()" class="w-full text-left px-6 py-3 flex items-center gap-3 text-red-500 font-bold hover:bg-red-50">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            <!-- Dashboard -->
+            <section id="sec-dashboard">
+                <h2 class="text-2xl font-black mb-6">Admin Overview</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-blue-500"><p class="text-gray-400 text-[10px] font-black uppercase">Total Revenue</p><p class="text-2xl font-black text-gray-800" id="stat-revenue">৳ 0</p></div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-green-500"><p class="text-gray-400 text-[10px] font-black uppercase">Today's Income</p><p class="text-2xl font-black text-green-600" id="stat-today-revenue">৳ 0</p></div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-orange-500"><p class="text-gray-400 text-[10px] font-black uppercase">Total Orders</p><p class="text-2xl font-black text-gray-800" id="stat-orders">0</p></div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-purple-500"><p class="text-gray-400 text-[10px] font-black uppercase">Active Riders</p><p class="text-2xl font-black text-gray-800" id="stat-active-riders">0</p></div>
+                </div>
+            </section>
+
+            <!-- Orders -->
+            <section id="sec-orders" class="hidden-section">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-black">Order Management</h2>
+                    <div class="flex bg-gray-200 p-1 rounded-xl">
+                        <button onclick="filterOrders('ALL', this)" class="order-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold order-filter-active">All</button>
+                        <button onclick="filterOrders('PENDING', this)" class="order-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold">Pending</button>
+                        <button onclick="filterOrders('ASSIGNED', this)" class="order-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold">Active</button>
+                        <button onclick="filterOrders('DELIVERED', this)" class="order-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold">Done</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm overflow-x-auto border">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="p-4 text-[10px] font-black uppercase">Restaurant</th>
+                                <th class="p-4 text-[10px] font-black uppercase">Amount</th>
+                                <th class="p-4 text-[10px] font-black uppercase">Status</th>
+                                <th class="p-4 text-[10px] font-black uppercase">Assign Rider</th>
+                                <th class="p-4 text-[10px] font-black uppercase text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Map -->
+            <section id="sec-map" class="hidden-section"><h2 class="text-2xl font-black mb-6">Live Rider Tracker</h2><div id="map"></div></section>
+
+            <!-- Restaurants -->
+            <section id="sec-restaurants" class="hidden-section">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-black">Restaurants</h2>
+                    <button onclick="addRestaurantManual()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-red-700">+ Add Restaurant</button>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden p-2">
+                    <div id="restaurant-list-container" class="flex flex-col">
+                        <!-- Content generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customers -->
+            <section id="sec-customers" class="hidden-section">
+                <h2 class="text-2xl font-black mb-6">Registered Customers</h2>
+                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left"><tbody id="customer-table-body"></tbody></table></div>
+            </section>
+
+            <!-- Riders -->
+            <section id="sec-riders" class="hidden-section">
+                <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-black">Delivery Riders</h2><button onclick="addRider()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold">+ Add Rider</button></div>
+                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left"><tbody id="rider-table-body"></tbody></table></div>
+            </section>
+
+            <!-- Requests -->
+            <section id="sec-requests" class="hidden-section">
+                <h2 class="text-2xl font-black mb-6">Partner Requests</h2>
+                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left"><tbody id="request-table-body"></tbody></table></div>
+            </section>
+
+            <!-- Settings -->
+            <section id="sec-settings" class="hidden-section">
+                <h2 class="text-2xl font-black mb-6">App Settings</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
+                        <div><h3 class="font-bold">Operational Status</h3><p class="text-xs text-gray-500" id="status-text">Store is Open</p></div>
+                        <label class="switch"><input type="checkbox" id="master-switch" onchange="toggleAppStatus(this.checked)"><span class="slider"></span></label>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD_TytbX1kd4SKQ5uHZfd5XVGwdw0gzUOE",
+            authDomain: "feeling-hungry-102a9.firebaseapp.com",
+            databaseURL: "https://feeling-hungry-102a9-default-rtdb.firebaseio.com",
+            projectId: "feeling-hungry-102a9",
+            storageBucket: "feeling-hungry-102a9.firebasestorage.app",
+            messagingSenderId: "736201265500",
+            appId: "1:736201265500:web:7b7064b314247c02ad7199"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        let restaurantList = {}, riderList = {}, allOrders = {}, currentOrderFilter = "ALL";
+        let map, riderMarkers = {};
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                loadData();
+            }
+        });
+
+        function adminLogin() {
+            const email = document.getElementById('admin-email').value;
+            const pass = document.getElementById('admin-pass').value;
+            auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+        }
+
+        function loadData() {
+            db.ref('appSettings').on('value', snap => {
+                const s = snap.val() || { isOpen: true };
+                document.getElementById('master-switch').checked = s.isOpen;
+                document.getElementById('status-text').innerText = s.isOpen ? "App is OPEN" : "App is CLOSED";
+            });
+            db.ref('orders').on('value', snap => { allOrders = snap.val() || {}; renderOrders(); calculateRevenue(); });
+            db.ref('riders').on('value', snap => { riderList = snap.val() || {}; renderRiders(); if(map) updateMapMarkers(); });
+            db.ref('restaurants').on('value', snap => { restaurantList = snap.val() || {}; renderRestaurants(); });
+            db.ref('customers').on('value', snap => renderCustomers(snap.val() || {}));
+            db.ref('partners').on('value', snap => renderRequests(snap.val() || {}));
+        }
+
+        // --- RESTAURANT RENDER (UPDATED TO MATCH SCREENSHOT) ---
+        function renderRestaurants() {
+            const container = document.getElementById('restaurant-list-container');
+            let html = "";
+            Object.entries(restaurantList).forEach(([id, res]) => {
+                html += `
+                <div class="res-card flex items-center justify-between p-4 bg-white">
+                    <div class="flex items-center gap-6">
+                        <span class="text-red-600 font-black text-lg w-6">${res.idNo || '00'}</span>
+                        <span class="font-bold text-gray-800 text-lg">${res.name}</span>
+                    </div>
+                    <div class="flex items-center gap-8">
+                        <div onclick="updateResFee('${id}', ${res.deliveryFee || 0})" class="res-fee-badge font-black text-gray-900 text-lg">
+                            ৳${res.deliveryFee || 0}
+                        </div>
+                        <button onclick="deleteData('restaurants/${id}')" class="text-red-400 hover:text-red-600 text-xl">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html || '<p class="p-4 text-center text-gray-400">No restaurants found.</p>';
+        }
+
+        // --- UPDATE RESTAURANT DELIVERY CHARGE ---
+        function updateResFee(id, currentFee) {
+            const newFee = prompt("Update Delivery Charge for this restaurant:", currentFee);
+            if (newFee !== null && !isNaN(newFee)) {
+                db.ref(`restaurants/${id}`).update({ deliveryFee: parseFloat(newFee) })
+                .then(() => console.log("Fee Updated"))
+                .catch(e => alert(e.message));
+            }
+        }
+
+        // --- AUTO ASSIGN LOGIC ---
+        function autoAssignRider(orderId) {
+            const onlineRiders = Object.entries(riderList).filter(([id, r]) => r.online === true);
+            if (onlineRiders.length === 0) { alert("No riders are currently online!"); return; }
+            const busyRiderIds = Object.values(allOrders).filter(o => o.status === 'ASSIGNED').map(o => o.riderId);
+            let targetRider = onlineRiders.find(([id, r]) => !busyRiderIds.includes(id));
+            if (!targetRider) targetRider = onlineRiders[0];
+            assignRider(orderId, targetRider[0]);
+        }
+
+        function renderOrders() {
+            const container = document.getElementById('orders-table-body');
+            let html = "";
+            const keys = Object.keys(allOrders).reverse();
+            let riderOptionsBase = `<option value="">Select Rider</option>`;
+            Object.entries(riderList).forEach(([rId, r]) => { riderOptionsBase += `<option value="${rId}">${r.name}</option>`; });
+            keys.forEach(id => {
+                const order = allOrders[id];
+                if(currentOrderFilter !== "ALL" && order.status !== currentOrderFilter) return;
+                let specificOptions = riderOptionsBase.replace(`value="${order.riderId}"`, `value="${order.riderId}" selected`);
+                html += `
+                    <tr class="border-b text-sm">
+                        <td class="p-4 font-bold">${order.restaurantName}</td>
+                        <td class="p-4 font-black text-red-600">৳${order.total}</td>
+                        <td class="p-4"><span class="px-2 py-1 rounded-lg text-[10px] font-bold ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}">${order.status}</span></td>
+                        <td class="p-4 flex items-center gap-2">
+                            <select onchange="assignRider('${id}', this.value)" class="p-1 border rounded-lg text-xs outline-none">${specificOptions}</select>
+                            <button onclick="autoAssignRider('${id}')" class="bg-blue-600 text-white px-2 py-1 rounded-md text-[10px] font-bold">Auto</button>
+                        </td>
+                        <td class="p-4 text-right flex gap-2 justify-end">
+                            <button onclick="viewOrder('${id}')" class="text-blue-500 bg-blue-50 p-2 rounded-lg"><i class="fas fa-eye"></i></button>
+                            <button onclick="deleteData('orders/${id}')" class="text-gray-300 hover:text-red-500 p-2"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function filterOrders(status, btn) { currentOrderFilter = status; document.querySelectorAll('.order-filter-btn').forEach(b => b.classList.remove('order-filter-active')); btn.classList.add('order-filter-active'); renderOrders(); }
+        function calculateRevenue() { let total = 0, today = 0, count = 0; const todayStr = new Date().toDateString(); Object.values(allOrders).forEach(o => { count++; if(o.status === 'DELIVERED') { total += parseFloat(o.total || 0); if(new Date(o.timestamp).toDateString() === todayStr) today += parseFloat(o.total || 0); } }); document.getElementById('stat-revenue').innerText = "৳ " + total; document.getElementById('stat-today-revenue').innerText = "৳ " + today; document.getElementById('stat-orders').innerText = count; }
+        function renderCustomers(data) { let html = ""; Object.entries(data).forEach(([id, c]) => { html += `<tr class="border-b text-xs"><td class="p-4 font-bold">${c.name}</td><td class="p-4">${c.phone}</td><td class="p-4 italic text-gray-400 truncate max-w-xs">${c.activeAddress || '-'}</td><td class="p-4 text-right"><button onclick="deleteData('customers/${id}')" class="text-red-400"><i class="fas fa-trash"></i></button></td></tr>`; }); document.getElementById('customer-table-body').innerHTML = html; }
+        function initMap() { if (map) return; map = L.map('map').setView([23.8103, 90.4125], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); }
+        function updateMapMarkers() { let bounds = []; Object.entries(riderList).forEach(([id, r]) => { if (r.location?.lat) { const pos = [r.location.lat, r.location.lng]; bounds.push(pos); if (riderMarkers[id]) { riderMarkers[id].setLatLng(pos); } else { riderMarkers[id] = L.circleMarker(pos, { radius: 8, fillColor: "#ef4444", color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map); } } }); if (bounds.length > 0) map.fitBounds(bounds, { padding: [30, 30] }); }
+        function showSection(id) { document.querySelectorAll('main section').forEach(s => s.classList.add('hidden-section')); document.getElementById('sec-'+id).classList.remove('hidden-section'); document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('sidebar-active')); document.getElementById('btn-'+id).classList.add('sidebar-active'); if(id === 'map') { setTimeout(() => { initMap(); map.invalidateSize(); updateMapMarkers(); }, 100); } }
+        function viewOrder(id) { const o = allOrders[id]; let itemsHtml = o.items.map(i => `<div class="flex justify-between text-sm py-1 border-b"><span>${i.name}</span><b>৳${i.price}</b></div>`).join(''); document.getElementById('order-details-content').innerHTML = `<div class="space-y-4"><div class="bg-white p-4 rounded-xl border"><p class="text-[10px] font-black text-gray-400 uppercase">Customer</p><h4 class="font-bold">${o.customerName}</h4><p class="text-sm text-blue-500 font-bold">${o.customerPhone}</p><p class="text-xs text-gray-500 mt-2">${o.address}</p></div><div class="bg-white p-4 rounded-xl border"><p class="text-[10px] font-black text-gray-400 uppercase">Items</p>${itemsHtml}<div class="flex justify-between mt-3 text-red-600 font-black"><span>Total Bill</span><span>৳${o.total}</span></div></div></div>`; document.getElementById('order-modal').classList.remove('hidden'); }
+        function renderRiders() { let html = ""; Object.entries(riderList).forEach(([id, r]) => { html += `<tr class="border-b text-sm"><td class="p-4 font-bold">${r.name}</td><td class="p-4">${r.phone}</td><td class="p-4 text-right"><button onclick="deleteData('riders/${id}')" class="text-red-400"><i class="fas fa-trash"></i></button></td></tr>`; }); document.getElementById('rider-table-body').innerHTML = html; }
+        function renderRequests(data) { let html = ""; Object.entries(data).forEach(([id, r]) => { html += `<tr class="border-b text-xs"><td class="p-4 font-bold">${r.name}<br><span class="text-gray-400">${r.phone}</span></td><td class="p-4 text-right"><button onclick="approvePartner('${id}')" class="bg-green-500 text-white px-3 py-1 rounded-lg">Approve</button></td></tr>`; }); document.getElementById('request-table-body').innerHTML = html; }
+        function toggleAppStatus(s) { db.ref('appSettings/isOpen').set(s); }
+        function deleteData(path) { if(confirm("Are you sure?")) db.ref(path).remove(); }
+        function closeOrderModal() { document.getElementById('order-modal').classList.add('hidden'); }
+        function stopAlarm() { document.getElementById('alarm-overlay').classList.add('hidden'); document.getElementById('order-sound').pause(); }
+        function logout() { auth.signOut().then(() => location.reload()); }
+        function assignRider(orderId, riderId) { if(!riderId) return; const r = riderList[riderId]; db.ref(`orders/${orderId}`).update({ riderId, riderName: r.name, riderPhone: r.phone, status: 'ASSIGNED' }); }
+        function addRestaurantManual() { const name = prompt("Restaurant Name:"); const id = prompt("Assign ID (e.g. 01):"); const fee = prompt("Delivery Fee:", 50); if(name && id) db.ref('restaurants').push({ name, idNo: id, deliveryFee: parseFloat(fee) }); }
+    </script>
+</body>
+</html>
