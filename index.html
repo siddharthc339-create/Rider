@@ -3,230 +3,247 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>খিদে লাগছে | রাইডার অ্যাপ</title>
+    <title>খিদে লাগছে | কাস্টমার অ্যাপ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&display=swap');
-        body { font-family: 'Hind Siliguri', sans-serif; background-color: #f3f4f6; padding-bottom: 80px; -webkit-tap-highlight-color: transparent; }
-        .tab-content { display: none; }
+        body { 
+            font-family: 'Hind Siliguri', sans-serif; 
+            background-color: #f8f9fa; 
+            padding-bottom: 90px; 
+            -webkit-tap-highlight-color: transparent;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* Performance Tweaks */
+        .tab-content { display: none; contain: content; }
         .active-tab { display: block; }
         .nav-active { color: #ef4444; border-top: 3px solid #ef4444; }
         
-        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #22c55e; }
-        input:checked + .slider:before { transform: translateX(24px); }
+        /* Smooth Scrolling */
+        .overflow-y-auto { 
+            -webkit-overflow-scrolling: touch; 
+            scrollbar-width: none;
+        }
 
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .animate-spin-custom { animation: spin 1.2s linear infinite; }
+        .cart-float { animation: slideUp 0.2s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .msg-box { max-width: 80%; padding: 10px 15px; font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+        .msg-customer { background-color: #ef4444; color: white; align-self: flex-end; border-radius: 18px 18px 2px 18px; }
+        .msg-rider { background-color: #ffffff; color: #1f2937; align-self: flex-start; border-radius: 18px 18px 18px 2px; border: 1px solid #e5e7eb; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .cat-active { background-color: #ef4444 !important; color: white !important; }
+        .addr-active { border: 2px solid #ef4444; background-color: #fef2f2; }
+        
+        .step-circle { width: 12px; height: 12px; border-radius: 50%; background: #e5e7eb; position: relative; z-index: 2; }
+        .step-line { height: 2px; background: #e5e7eb; flex: 1; margin: 0 -2px; position: relative; z-index: 1; }
+        .step-active { background: #ef4444 !important; }
+        #tracking-map { height: 100%; width: 100%; z-index: 1; background: #eee; }
 
-        .msg-box { max-width: 80%; padding: 10px 15px; font-weight: 600; font-size: 14px; margin-bottom: 2px; position: relative; }
-        .msg-rider { background-color: #ef4444; color: white; align-self: flex-end; border-radius: 18px 18px 2px 18px; }
-        .msg-customer { background-color: #ffffff; color: #1f2937; align-self: flex-start; border-radius: 18px 18px 18px 2px; border: 1px solid #e5e7eb; }
+        .fa-spin-once { animation: spin 0.5s ease-in-out; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Tip Button Active State */
+        .tip-btn-active { background-color: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
     </style>
 </head>
 <body>
 
     <!-- Auth Screen -->
-    <div id="auth-screen" class="fixed inset-0 min-h-screen flex items-center justify-center p-6 bg-gray-900 z-[100]">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border-t-8 border-red-600">
-            <h2 class="text-3xl font-black text-red-600 text-center mb-2 italic">RIDER APP</h2>
-            <p id="auth-subtitle" class="text-center text-gray-400 font-bold text-sm mb-6 uppercase">খিদে লাগছে ডেলিভারি পার্টনার</p>
-            
+    <div id="auth-screen" class="fixed inset-0 min-h-screen flex items-center justify-center p-6 bg-red-600 z-[100]">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md text-center">
+            <h2 class="text-4xl font-black text-red-600 mb-2 italic">খিদে লাগছে</h2>
             <div id="login-form">
-                <input type="number" id="login-phone" placeholder="ফোন নম্বর" class="w-full p-4 mb-3 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <input type="password" id="login-pin" maxlength="4" placeholder="৪-ডিজিট পিন" class="w-full p-4 mb-4 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <button onclick="loginRider()" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-xl shadow-lg hover:bg-red-700 transition">লগইন করুন</button>
-                <button onclick="showForgetPassword()" class="w-full text-red-500 text-sm font-bold mt-3">পিন ভুলে গেছেন?</button>
-                <p class="text-center mt-4 text-sm font-bold text-gray-500">অ্যাকাউন্ট নেই? <button onclick="toggleAuth('signup')" class="text-red-600 underline">নিবন্ধন করুন</button></p>
+                <input type="number" id="login-phone" placeholder="ফোন নম্বর" class="w-full p-4 mb-4 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg">
+                <button onclick="loginUser()" class="w-full bg-red-600 text-white py-4 rounded-2xl font-bold text-xl shadow-lg active:scale-95 transition-transform">লগইন</button>
+                <p class="mt-6 text-center text-gray-500">নতুন? <a href="#" onclick="toggleAuth(false)" class="text-red-600 font-bold underline">সাইন আপ</a></p>
             </div>
-
-            <div id="signup-form" class="hidden">
-                <input type="text" id="signup-name" placeholder="আপনার নাম" class="w-full p-4 mb-3 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <input type="number" id="signup-phone" placeholder="ফোন নম্বর" class="w-full p-4 mb-3 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <input type="password" id="signup-pin" maxlength="4" placeholder="৪-ডিজিট পিন সেট করুন" class="w-full p-4 mb-4 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <button onclick="signupRider()" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-xl shadow-lg hover:bg-green-700 transition">নিবন্ধন সম্পন্ন করুন</button>
-                <p class="text-center mt-4 text-sm font-bold text-gray-500">অ্যাকাউন্ট আছে? <button onclick="toggleAuth('login')" class="text-red-600 underline">লগইন করুন</button></p>
-            </div>
-
-            <div id="forget-form" class="hidden">
-                <p class="text-xs text-center text-gray-500 mb-4 font-bold">আপনার নিবন্ধিত নম্বরটি দিন। একটি ভেরিফিকেশন পিন যাবে।</p>
-                <input type="number" id="forget-phone" placeholder="ফোন নম্বর" class="w-full p-4 mb-3 bg-gray-100 rounded-2xl outline-none text-center font-bold text-lg border-2 border-transparent focus:border-red-500">
-                <div id="otp-section" class="hidden">
-                    <input type="number" id="verify-otp" placeholder="ভেরিফিকেশন পিন দিন" class="w-full p-4 mb-3 bg-blue-50 border-blue-200 rounded-2xl outline-none text-center font-bold text-lg border-2">
+            <div id="signup-form" class="hidden space-y-3">
+                <input type="text" id="reg-name" placeholder="আপনার নাম" class="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none text-center">
+                <input type="number" id="reg-phone" placeholder="ফোন নম্বর" class="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none text-center">
+                <div class="relative">
+                    <textarea id="reg-address" placeholder="সঠিক ঠিকানা..." class="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none h-20 text-center"></textarea>
+                    <button onclick="detectLocation('reg-address')" class="absolute right-2 bottom-2 bg-white text-red-600 p-2 rounded-xl shadow-md text-xs font-bold border border-red-100"><i class="fas fa-location-crosshairs"></i></button>
                 </div>
-                <button id="forget-btn" onclick="sendOTP()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xl shadow-lg">পিন পাঠান</button>
-                <button id="verify-btn" onclick="verifyOTPAndLogin()" class="hidden w-full bg-green-600 text-white py-4 rounded-2xl font-black text-xl shadow-lg">ভেরিফাই এবং লগইন</button>
-                <p class="text-center mt-4 text-sm font-bold text-gray-500"><button onclick="toggleAuth('login')" class="text-gray-400">পিছনে যান</button></p>
+                <button onclick="registerUser()" class="w-full bg-red-600 text-white py-4 rounded-2xl font-bold text-xl shadow-lg">অ্যাকাউন্ট খুলুন</button>
+                <p class="mt-4 text-center"><a href="#" onclick="toggleAuth(true)" class="text-gray-400 font-bold">লগইন এ ফিরে যান</a></p>
             </div>
         </div>
     </div>
 
-    <!-- Main Content -->
+    <!-- App Content -->
     <div id="app-content" class="hidden">
         <header class="bg-white p-4 sticky top-0 z-20 shadow-sm flex justify-between items-center border-b">
             <div class="flex items-center gap-3">
-                <div class="bg-red-600 w-10 h-10 rounded-full flex items-center justify-center text-white"><i class="fas fa-motorcycle"></i></div>
+                <div onclick="refreshApp()" class="bg-red-600 p-2 rounded-xl text-white cursor-pointer active:scale-90 transition-transform">
+                    <i id="refresh-icon" class="fas fa-sync-alt"></i>
+                </div>
                 <div>
-                    <h1 id="rider-name-display" class="text-sm font-black text-gray-800 leading-tight">লোড হচ্ছে...</h1>
-                    <p id="live-time" class="text-[9px] font-bold text-gray-400 mb-1">00:00:00 PM</p>
-                    <div class="flex items-center gap-2">
-                        <span id="online-text" class="text-[10px] font-bold text-gray-400 uppercase">অফলাইন</span>
-                        <label class="switch">
-                            <input type="checkbox" id="duty-switch" onchange="toggleDuty(this.checked)">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
+                    <p class="text-[10px] text-red-500 uppercase font-black">ডেলিভারি ঠিকানা</p>
+                    <h1 id="user-address-header" class="text-xs font-bold truncate max-w-[150px] text-gray-700 italic">লোড হচ্ছে...</h1>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <button onclick="refreshApp()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 active:bg-gray-200 transition">
-                    <i id="refresh-icon" class="fas fa-sync-alt text-xs"></i>
-                </button>
-                <div class="text-right">
-                    <p class="text-[10px] text-gray-400 font-bold uppercase leading-tight">আজকের আয়</p>
-                    <p id="today-earning" class="text-lg font-black text-green-600">৳ ০</p>
-                </div>
-            </div>
+            <button onclick="openCart()" class="relative p-3 bg-red-50 rounded-2xl">
+                <i class="fas fa-shopping-basket text-red-600 text-xl"></i>
+                <span id="cart-badge" class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full border-2 border-white hidden">0</span>
+            </button>
         </header>
 
-        <!-- Tasks Tab -->
-        <section id="tab-tasks" class="tab-content active-tab p-4">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-black text-gray-800">চলমান অর্ডার</h2>
-                <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[10px] font-bold" id="task-count">০ টি</span>
+        <!-- Home Tab -->
+        <section id="tab-home" class="tab-content active-tab p-4">
+            <div id="time-status-banner" class="mb-4 text-center p-2 rounded-xl font-bold text-[10px] uppercase"></div>
+            <div class="relative mb-6">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="search-input" oninput="debouncedFilter()" placeholder="রেস্টুরেন্ট খুঁজুন..." class="w-full p-4 pl-12 bg-white rounded-2xl shadow-sm border border-gray-100 outline-none font-bold text-sm">
             </div>
-            <div id="assigned-orders-list" class="space-y-4"></div>
-            <div id="empty-tasks" class="text-center py-20 hidden">
-                <i class="fas fa-box-open text-gray-200 text-6xl mb-4"></i>
-                <p class="text-gray-400 font-bold">আপাতত কোন নতুন অর্ডার নেই</p>
+
+            <div class="flex gap-3 overflow-x-auto no-scrollbar mb-6 pb-2">
+                <button onclick="filterCategory('সব')" class="cat-btn cat-active whitespace-nowrap px-6 py-2 bg-white rounded-full text-xs font-black shadow-sm border">সব</button>
+                <button onclick="filterCategory('Biryani')" class="cat-btn whitespace-nowrap px-6 py-2 bg-white rounded-full text-xs font-black shadow-sm border">Biryani</button>
+                <button onclick="filterCategory('Fast food')" class="cat-btn whitespace-nowrap px-6 py-2 bg-white rounded-full text-xs font-black shadow-sm border">Fast food</button>
             </div>
+
+            <h2 class="text-xl font-black mb-4 text-gray-800 flex items-center gap-2"><i class="fas fa-store text-red-600"></i> রেস্টুরেন্ট সমূহ</h2>
+            <div id="restaurant-list" class="space-y-4"></div>
         </section>
 
-        <!-- History Tab -->
-        <section id="tab-history" class="tab-content p-4">
-            <h2 class="text-xl font-black mb-4">ডেলিভারি হিস্ট্রি</h2>
-            <div id="history-list" class="space-y-3"></div>
+        <!-- Orders Tab -->
+        <section id="tab-orders" class="tab-content p-4">
+            <h2 class="text-2xl font-black mb-4">আমার অর্ডার</h2>
+            <div id="my-orders-list" class="space-y-4"></div>
         </section>
 
         <!-- Profile Tab -->
-        <section id="tab-profile" class="tab-content p-4">
-            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm text-center border mb-6">
-                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 text-3xl border-4 border-white shadow-md"><i class="fas fa-user-tie"></i></div>
-                <h3 id="prof-name" class="font-black text-2xl">-</h3>
-                <p id="prof-phone" class="text-gray-400 font-bold mb-6">-</p>
-                
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <div class="bg-gray-50 p-4 rounded-2xl border">
-                        <p class="text-[10px] font-black text-gray-400 uppercase">আজকের ডেলিভারি</p>
-                        <p id="total-del" class="text-xl font-black text-gray-800">০</p>
+        <section id="tab-profile" class="tab-content p-4 text-center">
+            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border mb-6">
+                <div class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-3 text-white text-2xl"><i class="fas fa-user"></i></div>
+                <h3 id="prof-name" class="font-black text-xl text-gray-800">-</h3>
+                <p id="prof-phone" class="text-red-500 font-bold text-sm mb-4">-</p>
+                <div class="border-t pt-4 text-left">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">আমার ঠিকানাগুলো</p>
+                        <button onclick="toggleAddrModal(true)" class="text-red-600 text-xs font-black">+ নতুন</button>
                     </div>
-                    <div class="bg-gray-50 p-4 rounded-2xl border">
-                        <p class="text-[10px] font-black text-gray-400 uppercase">আজকের মোট আয়</p>
-                        <p id="total-income-stat" class="text-xl font-black text-green-600">৳ ০</p>
-                    </div>
-                </div>
-
-                <div class="space-y-3 text-left mb-6">
-                    <div onclick="showDetail('wallet')" class="bg-blue-50 p-5 rounded-3xl border border-blue-100 flex justify-between items-center active:scale-95 transition-transform cursor-pointer">
-                        <div>
-                            <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest italic">Wallet (Today Cash Collect)</p>
-                            <h4 class="text-2xl font-black text-gray-800" id="wallet-cash">৳ ০</h4>
-                        </div>
-                        <div class="bg-blue-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-wallet text-xl"></i></div>
-                    </div>
-
-                    <div onclick="showDetail('payment')" class="bg-orange-50 p-5 rounded-3xl border border-orange-100 flex justify-between items-center active:scale-95 transition-transform cursor-pointer">
-                        <div>
-                            <p class="text-[10px] font-black text-orange-500 uppercase tracking-widest italic">Payment (Today Earned)</p>
-                            <h4 class="text-2xl font-black text-gray-800" id="payment-delivery">৳ ০</h4>
-                        </div>
-                        <div class="bg-orange-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-hand-holding-usd text-xl"></i></div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-5 rounded-3xl border text-left space-y-4 mb-6 shadow-sm">
-                    <h4 class="font-black text-gray-700 text-sm uppercase italic"><i class="fas fa-tools mr-2"></i> Trouble Shoot</h4>
-                    
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <p class="text-xs font-bold text-gray-800">GPS স্ট্যাটাস</p>
-                            <p class="text-[10px] text-gray-400 font-bold">Location tracking status.</p>
-                        </div>
-                        <div id="gps-status-box" class="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded bg-gray-100 text-gray-400">
-                            <i id="gps-icon-status" class="fas fa-circle-notch"></i>
-                            <span id="gps-text">DISABLED</span>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <p class="text-xs font-bold text-gray-800">অর্ডার অ্যালার্ম সাউন্ড</p>
-                            <p class="text-[10px] text-gray-400 font-bold">New order alert sound.</p>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="sound-switch" checked onchange="toggleSound(this.checked)">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <button onclick="testAlarmSound()" class="w-full bg-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase shadow-sm">সাউন্ড টেস্ট করুন</button>
-
-                    <div class="border-t pt-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <p class="text-xs font-bold text-gray-800">Network status</p>
-                            <span id="network-status" class="text-[10px] font-black px-2 py-1 rounded bg-green-100 text-green-600">CONNECTED</span>
-                        </div>
-                        <button onclick="checkNetwork()" class="w-full bg-white border border-gray-200 py-2 rounded-xl text-[10px] font-black text-gray-500 uppercase hover:bg-gray-100 transition">TEST THE CONNECTION.</button>
-                    </div>
+                    <div id="address-list" class="space-y-2"></div>
                 </div>
             </div>
-            <button onclick="logout()" class="w-full bg-red-50 text-red-600 py-4 rounded-2xl font-black border border-red-100 mb-4">লগআউট করুন</button>
+            
+            <div class="space-y-3">
+                <button onclick="clearAppData()" class="w-full bg-gray-100 text-gray-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+                    <i class="fas fa-broom"></i> ক্যাশ পরিষ্কার করুন
+                </button>
+                <button onclick="logout()" class="w-full bg-red-50 text-red-600 py-4 rounded-2xl font-black">লগআউট</button>
+            </div>
         </section>
 
-        <!-- Detail Modal -->
-        <div id="detail-modal" class="fixed inset-0 bg-black/60 z-[200] hidden flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden flex flex-col max-h-[80vh]">
-                <div class="p-6 border-b flex justify-between items-center bg-gray-50">
-                    <h3 id="modal-title" class="font-black text-lg text-gray-800 uppercase italic">Details</h3>
-                    <button onclick="closeModal()" class="text-gray-400 text-2xl">&times;</button>
+        <!-- Menu View -->
+        <div id="menu-view" class="fixed inset-0 bg-white z-40 hidden overflow-y-auto">
+            <div class="p-4 flex items-center gap-4 border-b sticky top-0 bg-white z-10">
+                <button onclick="closeMenu()"><i class="fas fa-chevron-left text-xl text-red-600"></i></button>
+                <h2 id="menu-res-name" class="text-lg font-black text-gray-800 italic">মেনু</h2>
+            </div>
+            <div id="menu-items-list" class="p-4 space-y-4 pb-32"></div>
+            <div id="floating-cart" class="fixed bottom-24 left-4 right-4 bg-red-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center hidden cart-float">
+                <div><p id="float-cart-count" class="text-xs font-bold">১টি আইটেম</p><p id="float-cart-total" class="text-lg font-black">মোট: ৳০</p></div>
+                <button onclick="openCart()" class="bg-white text-red-600 px-6 py-2 rounded-xl font-black text-sm">চেকআউট</button>
+            </div>
+        </div>
+
+        <!-- Add Address Modal -->
+        <div id="addr-modal" class="fixed inset-0 bg-black/60 z-[90] hidden flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
+                <h3 class="text-xl font-black text-center mb-6">নতুন ঠিকানা</h3>
+                <div class="flex gap-2 mb-4">
+                    <button onclick="setAddrType('বাসা')" class="addr-type-btn flex-1 py-2 border rounded-xl font-bold text-xs bg-red-600 text-white border-red-600">বাসা</button>
+                    <button onclick="setAddrType('অফিস')" class="addr-type-btn flex-1 py-2 border rounded-xl font-bold text-xs">অফিস</button>
                 </div>
-                <div id="modal-content" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
-                <div class="p-4 bg-gray-50 border-t text-center">
-                    <p id="modal-footer-total" class="font-black text-red-600 text-xl"></p>
+                <div class="relative mb-6">
+                    <textarea id="new-addr-text" placeholder="সঠিক ঠিকানা লিখুন..." class="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none h-24 resize-none text-sm"></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="toggleAddrModal(false)" class="flex-1 py-4 font-black text-gray-400">বাতিল</button>
+                    <button onclick="saveAddress()" class="flex-[2] bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">সংরক্ষণ</button>
                 </div>
             </div>
         </div>
 
+        <!-- Cart Modal -->
+        <div id="cart-modal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end">
+            <div class="bg-white w-full rounded-t-[3rem] p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-black text-gray-800">কার্ট</h3>
+                    <button onclick="openCart(false)" class="bg-gray-100 p-2 rounded-full text-gray-400"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="cart-items-box" class="space-y-3 mb-6"></div>
+                
+                <!-- Updated Tips Section -->
+                <div class="mb-6">
+                    <p class="text-[10px] font-black text-gray-400 uppercase mb-3 text-center tracking-widest">রাইডারের জন্য টিপস</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setTip(0)" id="tip-0" class="tip-btn border py-2 rounded-xl text-xs font-bold tip-btn-active">0</button>
+                        <button onclick="setTip(20)" id="tip-20" class="tip-btn border py-2 rounded-xl text-xs font-bold">৳২০</button>
+                        <button onclick="setTip(40)" id="tip-40" class="tip-btn border py-2 rounded-xl text-xs font-bold">৳৪০</button>
+                        <button onclick="setTip(60)" id="tip-60" class="tip-btn border py-2 rounded-xl text-xs font-bold">৳৬০</button>
+                        <button onclick="setTip(80)" id="tip-80" class="tip-btn border py-2 rounded-xl text-xs font-bold">৳৮০</button>
+                        <button onclick="setTip(100)" id="tip-100" class="tip-btn border py-2 rounded-xl text-xs font-bold">৳১০০</button>
+                    </div>
+                </div>
+
+                <div class="border-t border-dashed pt-4 space-y-2">
+                    <div class="flex justify-between font-bold text-gray-500 text-sm"><span>আইটেম:</span><span id="sub-total">৳ ০</span></div>
+                    <div class="flex justify-between font-bold text-red-500 text-sm"><span>ডেলিভারি:</span><span id="delivery-charge-display">৳ ০</span></div>
+                    <div id="tip-display-row" class="flex justify-between font-bold text-blue-500 text-sm hidden"><span>টিপস:</span><span id="tip-amount-display">৳ ০</span></div>
+                    <div class="flex justify-between mb-6 font-black text-2xl text-gray-800 pt-2 border-t mt-2"><span>সর্বমোট:</span><span id="cart-total-price">৳ ০</span></div>
+                    <button id="place-order-btn" onclick="placeOrder()" class="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-transform">অর্ডার কনফার্ম করুন</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tracking View -->
+        <div id="tracking-view" class="fixed inset-0 bg-white z-[95] hidden flex flex-col">
+            <div class="absolute top-4 left-4 z-[999]">
+                <button onclick="closeTracking()" class="bg-white text-gray-800 px-4 py-2 rounded-xl shadow-lg font-bold border text-sm"><i class="fas fa-arrow-left"></i> ফিরে যান</button>
+            </div>
+            <div id="tracking-map"></div>
+        </div>
+
         <!-- Chat View -->
-        <div id="chat-view" class="fixed inset-0 bg-white z-[300] hidden flex flex-col">
+        <div id="chat-view" class="fixed inset-0 bg-white z-[90] hidden flex flex-col">
             <div class="p-4 flex items-center justify-between border-b bg-white">
                 <div class="flex items-center gap-4">
                     <button onclick="closeChat()"><i class="fas fa-arrow-left text-xl text-red-600"></i></button>
-                    <div>
-                        <h2 id="chat-customer-name" class="text-lg font-black">কাস্টমার চ্যাট</h2>
-                        <p class="text-[10px] text-green-500 font-bold uppercase">অনলাইন</p>
-                    </div>
+                    <div><h2 id="chat-rider-name" class="text-lg font-black">রাইডার চ্যাট</h2></div>
                 </div>
-                <a id="customer-call-btn" href="#" class="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-phone-alt"></i></a>
             </div>
             <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-gray-50"></div>
             <div class="p-4 border-t bg-white flex gap-2">
                 <input type="text" id="chat-input" placeholder="লিখুন..." class="flex-1 p-4 bg-gray-100 rounded-2xl outline-none font-bold">
-                <button onclick="sendChatMessage()" class="bg-red-600 text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button>
+                <button onclick="sendChatMessage()" class="bg-red-600 text-white w-12 h-12 rounded-xl"><i class="fas fa-paper-plane"></i></button>
             </div>
         </div>
 
+        <!-- Success Screen -->
+        <div id="order-success-screen" class="fixed inset-0 bg-white z-[200] hidden flex flex-col items-center justify-center p-8 text-center">
+            <div class="w-32 h-32 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-5xl mb-6"><i class="fas fa-check"></i></div>
+            <h2 class="text-3xl font-black mb-10">অর্ডার সফল হয়েছে!</h2>
+            <button onclick="closeSuccessAndGoToOrders()" class="w-full max-w-xs bg-red-600 text-white py-5 rounded-[2rem] font-black text-xl">অর্ডার দেখুন</button>
+        </div>
+
         <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-3 shadow-2xl z-50">
-            <button onclick="switchTab('tasks')" id="nav-tasks" class="flex flex-col items-center nav-active px-6"><i class="fas fa-clipboard-list text-xl"></i><span class="text-[10px] font-bold">Tasks</span></button>
-            <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-300 px-6"><i class="fas fa-history text-xl"></i><span class="text-[10px] font-bold">History</span></button>
-            <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-300 px-6"><i class="fas fa-user text-xl"></i><span class="text-[10px] font-bold">Profile</span></button>
+            <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center nav-active px-6"><i class="fas fa-home text-xl"></i><span class="text-[10px] font-bold">Home</span></button>
+            <button onclick="switchTab('orders')" id="nav-orders" class="flex flex-col items-center text-gray-300 px-6"><i class="fas fa-receipt text-xl"></i><span class="text-[10px] font-bold">Order</span></button>
+            <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-300 px-6"><i class="fas fa-user-circle text-xl"></i><span class="text-[10px] font-bold">Profile</span></button>
         </nav>
     </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
         const firebaseConfig = {
@@ -241,360 +258,317 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let currentRider = null, currentRiderId = null, deliveredOrders = [];
-        let activeChatOrderId = null, watchId = null, wakeLock = null;
-        let isSoundEnabled = localStorage.getItem('khide_rider_sound') !== 'false';
-        let tempForgetRiderId = null;
+        let currentUser = null, cart = [], selectedTip = 0, activeChatOrderId = null;
+        let allRestaurantsData = {}, currentResName = "", activeDeliveryCharge = 0, currentCategory = "সব";
+        let searchTimeout;
 
-        const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        const chatNotifySound = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); 
-        alertSound.loop = true;
-        const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
-        silentAudio.loop = true;
-
-        function updateLiveTime() {
-            const options = { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
-            const now = new Intl.DateTimeFormat('en-US', options).format(new Date());
-            document.getElementById('live-time').innerText = now;
+        function toggleAuth(l) { 
+            document.getElementById('login-form').classList.toggle('hidden', !l); 
+            document.getElementById('signup-form').classList.toggle('hidden', l); 
         }
-        setInterval(updateLiveTime, 1000);
+        
+        function loginUser(pInput = null) {
+            const p = pInput || document.getElementById('login-phone').value;
+            if(!p) return;
+            db.ref('customers/' + p).once('value').then(snap => {
+                if(snap.exists()) {
+                    currentUser = snap.val();
+                    localStorage.setItem('khide_user_phone', p);
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('app-content').classList.remove('hidden');
+                    setupApp();
+                    db.ref('customers/' + p).on('value', s => { 
+                        currentUser = s.val(); 
+                        updateAddressListUI(); 
+                    });
+                } else if(!pInput) alert("অ্যাকাউন্ট পাওয়া যায়নি!");
+            });
+        }
+
+        function registerUser() {
+            const n = document.getElementById('reg-name').value, p = document.getElementById('reg-phone').value, a = document.getElementById('reg-address').value;
+            if(!n || !p || !a) return alert("সব ঘর পূরণ করুন");
+            db.ref('customers/' + p).set({ name:n, phone:p, activeAddress: a, addresses: {"বাসা": a} }).then(() => loginUser(p));
+        }
+
+        function setupApp() {
+            document.getElementById('user-address-header').innerText = currentUser.activeAddress;
+            document.getElementById('prof-name').innerText = currentUser.name;
+            document.getElementById('prof-phone').innerText = currentUser.phone;
+            
+            db.ref('appSettings').off();
+            db.ref('appSettings').on('value', snap => {
+                const s = snap.val() || { isOpen: true, deliveryCharge: 0 };
+                const banner = document.getElementById('time-status-banner');
+                banner.innerText = s.isOpen ? "● ডেলিভারি খোলা আছে" : "● এখন ডেলিভারি বন্ধ";
+                banner.className = `mb-4 text-center p-2 rounded-xl font-bold text-[10px] uppercase ${s.isOpen ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`;
+            });
+            loadRestaurants();
+        }
+
+        function loadRestaurants() {
+            db.ref('restaurants').off();
+            db.ref('restaurants').on('value', snap => {
+                allRestaurantsData = snap.val() || {};
+                renderRestaurants(allRestaurantsData);
+            });
+        }
+        
+        function renderRestaurants(data) {
+            const list = document.getElementById('restaurant-list');
+            let html = "";
+            const keys = Object.keys(data);
+            for(let key of keys) {
+                const res = data[key];
+                html += `
+                <div onclick="openMenu('${res.idNo}', '${res.name}')" class="bg-white p-4 rounded-3xl border border-gray-100 flex items-center gap-4 shadow-sm active:scale-95 transition-all">
+                    <div class="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 font-black text-xl">${res.name[0]}</div>
+                    <div class="flex-1">
+                        <h4 class="font-black text-gray-800 text-lg">${res.name}</h4>
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: ${res.idNo}</p>
+                    </div>
+                </div>`;
+            }
+            list.innerHTML = html;
+        }
+
+        function debouncedFilter() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const s = document.getElementById('search-input').value.toLowerCase();
+                const filtered = {};
+                Object.keys(allRestaurantsData).forEach(k => {
+                    const r = allRestaurantsData[k];
+                    if(r.name.toLowerCase().includes(s) && (currentCategory === "সব" || r.category === currentCategory)) filtered[k] = r;
+                });
+                renderRestaurants(filtered);
+            }, 150);
+        }
+
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('cat-active', b.innerText === cat));
+            debouncedFilter();
+        }
+
+        function openMenu(resIdNo, resName) {
+            currentResName = resName;
+            const resData = Object.values(allRestaurantsData).find(r => r.idNo === resIdNo);
+            activeDeliveryCharge = resData?.deliveryFee || 0;
+            document.getElementById('menu-view').classList.remove('hidden');
+            document.getElementById('menu-res-name').innerText = resName;
+            
+            db.ref('menus/' + resIdNo).once('value').then(snap => {
+                const list = document.getElementById('menu-items-list'); 
+                let html = "";
+                snap.forEach(child => {
+                    const item = child.val();
+                    html += `
+                    <div class="bg-white p-3 rounded-3xl border border-gray-100 flex items-center gap-4 shadow-sm">
+                        <img src="${item.image}" class="w-20 h-20 rounded-2xl object-cover bg-gray-50">
+                        <div class="flex-1">
+                            <h4 class="font-black text-gray-800">${item.name}</h4>
+                            <span class="text-red-600 font-black text-lg">৳${item.price}</span>
+                        </div>
+                        <button onclick="addToCart('${child.key}', '${item.name}', ${item.price})" class="bg-red-600 text-white px-5 py-2 rounded-xl font-black active:scale-90 transition-transform">+ যোগ</button>
+                    </div>`;
+                });
+                list.innerHTML = html;
+            });
+        }
+
+        function switchTab(t) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
+            document.getElementById('tab-' + t).classList.add('active-tab');
+            document.querySelectorAll('nav button').forEach(b => b.classList.replace('nav-active', 'text-gray-300'));
+            document.getElementById('nav-' + t).classList.replace('text-gray-300', 'nav-active');
+            
+            if(t === 'orders') {
+                loadMyOrders();
+            } else {
+                db.ref('orders').off();
+            }
+        }
+
+        function loadMyOrders() {
+            db.ref('orders').on('value', snap => {
+                const container = document.getElementById('my-orders-list');
+                let data = []; 
+                snap.forEach(c => { if(c.val().customerPhone === currentUser.phone) data.push({id: c.key, ...c.val()}); });
+                
+                let html = data.reverse().map(o => `
+                <div class="bg-white p-6 rounded-[2.5rem] border shadow-sm">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-black bg-gray-100 px-3 py-1 rounded-full">#${o.id.slice(-5)}</span>
+                        <span class="text-[10px] font-black text-red-600 uppercase italic">${o.status}</span>
+                    </div>
+                    <h4 class="font-black text-gray-800 text-lg">${o.restaurantName}</h4>
+                    <div class="flex justify-between items-center mt-4 pt-4 border-t">
+                        <span class="font-black text-xl text-gray-800">৳${o.total}</span>
+                        <div class="flex gap-2">
+                            ${o.status !== 'DELIVERED' ? `<button onclick="openChat('${o.id}')" class="bg-red-50 text-red-600 px-4 py-2 rounded-2xl text-xs font-black">চ্যাট</button>` : ''}
+                        </div>
+                    </div>
+                </div>`).join('');
+                container.innerHTML = html || `<p class="text-center py-10 text-gray-400 font-bold">কোন অর্ডার পাওয়া যায়নি</p>`;
+            });
+        }
 
         function refreshApp() {
             const icon = document.getElementById('refresh-icon');
-            icon.classList.add('animate-spin-custom');
-            if (currentRiderId) { loadAssignedOrders(); loadHistory(); checkNetwork(); }
-            setTimeout(() => { icon.classList.remove('animate-spin-custom'); }, 1200);
+            icon.classList.add('fa-spin-once');
+            setTimeout(() => icon.classList.remove('fa-spin-once'), 500);
+            setupApp();
+            if(document.getElementById('tab-orders').classList.contains('active-tab')) loadMyOrders();
         }
 
-        function toggleAuth(mode) {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('signup-form').classList.add('hidden');
-            document.getElementById('forget-form').classList.add('hidden');
-            if(mode === 'login') {
-                document.getElementById('login-form').classList.remove('hidden');
-                document.getElementById('auth-subtitle').innerText = "খিদে লাগছে ডেলিভারি পার্টনার";
-            } else if (mode === 'signup') {
-                document.getElementById('signup-form').classList.remove('hidden');
-                document.getElementById('auth-subtitle').innerText = "নতুন রাইডার হিসেবে যোগ দিন";
+        function clearAppData() {
+            if(confirm("অ্যাপের ক্যাশ এবং ডেটা পরিষ্কার করতে চান?")) {
+                localStorage.clear();
+                location.reload();
             }
         }
 
-        function showForgetPassword() {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('forget-form').classList.remove('hidden');
-            document.getElementById('auth-subtitle').innerText = "পিন পুনরুদ্ধার করুন";
+        function addToCart(id, name, price) { 
+            cart.push({id, name, price}); 
+            updateFloatingCart(); 
+            updateCartBadge(); 
         }
 
-        function loginRider(pPhone = null) {
-            const phone = pPhone || document.getElementById('login-phone').value;
-            const pin = document.getElementById('login-pin').value;
-            if(!phone) return alert("ফোন নম্বর দিন");
-            db.ref('riders').once('value', snap => {
-                let found = false;
-                snap.forEach(child => {
-                    const r = child.val();
-                    if(r.phone == phone) {
-                        if (pPhone || r.pin == pin) {
-                            currentRider = r; currentRiderId = child.key; found = true;
-                        }
-                    }
-                });
-                if(found) {
-                    localStorage.setItem('khide_rider_phone', phone);
-                    document.getElementById('auth-screen').classList.add('hidden');
-                    document.getElementById('app-content').classList.remove('hidden');
-                    setupRiderApp();
-                    silentAudio.play().catch(e=>{});
-                } else if (!pPhone) { alert("ভুল তথ্য বা রাইডার পাওয়া যায়নি!"); }
-            });
+        function updateFloatingCart() {
+            const bar = document.getElementById('floating-cart');
+            if(cart.length > 0) { 
+                bar.classList.remove('hidden'); 
+                document.getElementById('float-cart-count').innerText = cart.length + "টি আইটেম"; 
+                document.getElementById('float-cart-total').innerText = "৳" + (cart.reduce((a, b) => a + b.price, 0) + activeDeliveryCharge); 
+            } else bar.classList.add('hidden');
         }
 
-        function signupRider() {
-            const name = document.getElementById('signup-name').value.trim();
-            const phone = document.getElementById('signup-phone').value.trim();
-            const pin = document.getElementById('signup-pin').value.trim();
-            if(!name || !phone || !pin || pin.length !== 4) return alert("সঠিক তথ্য দিন (পিন ৪ ডিজিট)");
-            db.ref('riders').once('value', snap => {
-                let exists = false;
-                snap.forEach(child => { if(child.val().phone == phone) exists = true; });
-                if(exists) return alert("ইতিমধ্যে নিবন্ধিত!");
-                db.ref('riders').push({ name, phone, pin, online: false, wallet: 0 }).then(() => {
-                    alert("নিবন্ধন সফল!"); loginRider(phone);
-                });
-            });
+        function updateCartBadge() { 
+            const b = document.getElementById('cart-badge'); 
+            b.innerText = cart.length; 
+            b.classList.toggle('hidden', cart.length === 0); 
         }
 
-        function sendOTP() {
-            const phone = document.getElementById('forget-phone').value;
-            db.ref('riders').once('value', snap => {
-                let rKey = null; snap.forEach(c => { if(c.val().phone == phone) rKey = c.key; });
-                if(rKey) {
-                    const otp = Math.floor(1000 + Math.random() * 9000);
-                    db.ref(`riders/${rKey}`).update({ tempOTP: otp });
-                    tempForgetRiderId = rKey;
-                    alert("আপনার পিন: " + otp);
-                    document.getElementById('otp-section').classList.remove('hidden');
-                    document.getElementById('forget-btn').classList.add('hidden');
-                    document.getElementById('verify-btn').classList.remove('hidden');
-                } else alert("নম্বরটি ভুল!");
-            });
-        }
-
-        function verifyOTPAndLogin() {
-            const inputOTP = document.getElementById('verify-otp').value;
-            db.ref(`riders/${tempForgetRiderId}`).once('value', snap => {
-                if(snap.val().tempOTP == inputOTP) {
-                    db.ref(`riders/${tempForgetRiderId}/tempOTP`).remove();
-                    loginRider(snap.val().phone);
-                } else alert("ভুল পিন!");
-            });
-        }
-
-        function setupRiderApp() {
-            document.getElementById('rider-name-display').innerText = currentRider.name;
-            document.getElementById('prof-name').innerText = currentRider.name;
-            document.getElementById('prof-phone').innerText = currentRider.phone;
-            document.getElementById('duty-switch').checked = currentRider.online || false;
-            document.getElementById('sound-switch').checked = isSoundEnabled;
-            updateDutyUI(currentRider.online);
-            if(currentRider.online) startLiveTracking();
-            loadAssignedOrders();
-            loadHistory();
-        }
-
-        async function toggleDuty(status) {
-            if (status) {
-                updateGPSUI('REFRESHING');
-                if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen').catch(e=>{});
-                if (!navigator.geolocation) { alert("GPS নট সাপোর্টেড!"); document.getElementById('duty-switch').checked = false; return; }
-
-                // ROBUST GPS REQUEST: Try High Accuracy first, if fails (common in Apps), fallback to Low
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => { 
-                        // High Accuracy Success
-                        db.ref(`riders/${currentRiderId}`).update({ online: true }); 
-                        updateDutyUI(true); 
-                        startLiveTracking(); 
-                    },
-                    (errHigh) => {
-                        console.log("High accuracy failed ("+errHigh.code+"), trying low accuracy...");
-                        // Fallback to Low Accuracy (Network/Wifi)
-                        navigator.geolocation.getCurrentPosition(
-                            (posLow) => {
-                                db.ref(`riders/${currentRiderId}`).update({ online: true }); 
-                                updateDutyUI(true); 
-                                startLiveTracking();
-                            },
-                            (errLow) => {
-                                updateGPSUI('ERROR'); 
-                                document.getElementById('duty-switch').checked = false; 
-                                alert("GPS এরর! অনুগ্রহ করে অ্যাপ পারমিশন চেক করুন।"); 
-                            },
-                            { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-                        );
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            } else {
-                db.ref(`riders/${currentRiderId}`).update({ online: false });
-                updateDutyUI(false); stopLiveTracking();
-                if(wakeLock) { wakeLock.release(); wakeLock = null; }
-            }
-        }
-
-        function startLiveTracking() {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
+        function openCart(s = true) { 
+            if(s && cart.length === 0) return; 
+            document.getElementById('cart-modal').classList.toggle('hidden', !s); 
+            if(!s) return;
             
-            // Try watching with High Accuracy
-            watchId = navigator.geolocation.watchPosition(
-                (pos) => {
-                    updateGPSUI('ACTIVE');
-                    db.ref(`riders/${currentRiderId}/location`).set({
-                        lat: pos.coords.latitude, lng: pos.coords.longitude, lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                    });
-                }, 
-                (err) => {
-                    // If high accuracy watch fails, try low accuracy watch
-                    console.log("Watch high acc failed, switching to low");
-                    navigator.geolocation.clearWatch(watchId);
-                    watchId = navigator.geolocation.watchPosition(
-                         (pos) => {
-                            updateGPSUI('ACTIVE');
-                            db.ref(`riders/${currentRiderId}/location`).set({
-                                lat: pos.coords.latitude, lng: pos.coords.longitude, lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                            });
-                         },
-                         (e) => updateGPSUI('ERROR'),
-                         { enableHighAccuracy: false, timeout: 20000, maximumAge: 10000 }
-                    );
-                }, 
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-            );
-        }
-
-        function updateGPSUI(state) {
-            const box = document.getElementById('gps-status-box'), icon = document.getElementById('gps-icon-status'), text = document.getElementById('gps-text');
-            if(!box) return; icon.className = "fas";
-            if (state === 'REFRESHING') {
-                box.className = "flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded bg-orange-50 text-orange-500 border border-orange-100";
-                icon.classList.add('fa-circle-notch', 'animate-spin-custom'); text.innerText = "REFRESHING...";
-            } else if (state === 'ACTIVE') {
-                box.className = "flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded bg-green-100 text-green-600";
-                icon.classList.add('fa-check-circle'); text.innerText = "ACTIVE";
-            } else if (state === 'ERROR') {
-                box.className = "flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded bg-red-100 text-red-600";
-                icon.classList.add('fa-exclamation-triangle'); text.innerText = "ERROR";
-            } else {
-                box.className = "flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded bg-gray-100 text-gray-400";
-                icon.classList.add('fa-circle'); text.innerText = "DISABLED";
-            }
-        }
-
-        function stopLiveTracking() {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-            db.ref(`riders/${currentRiderId}/location`).remove();
-            updateGPSUI('DISABLED');
-        }
-
-        function toggleSound(status) { isSoundEnabled = status; localStorage.setItem('khide_rider_sound', status); if(!status) alertSound.pause(); }
-        function testAlarmSound() { alertSound.currentTime = 0; alertSound.play().then(() => setTimeout(() => alertSound.pause(), 3000)).catch(e => alert("সাউন্ড ব্লকড!")); }
-        function checkNetwork() { if (navigator.onLine) db.ref(".info/connected").once("value", s => document.getElementById('network-status').innerText = s.val() ? "CONNECTED" : "SERVER ERR"); else document.getElementById('network-status').innerText = "OFFLINE"; }
-        function updateDutyUI(s) { const t = document.getElementById('online-text'); t.innerText = s ? "অনলাইন" : "অফলাইন"; t.className = `text-[10px] font-bold uppercase ${s ? 'text-green-500' : 'text-gray-400'}`; }
-
-        function loadAssignedOrders() {
-            db.ref('orders').on('value', snap => {
-                const list = document.getElementById('assigned-orders-list'), empty = document.getElementById('empty-tasks');
-                list.innerHTML = ""; let count = 0, hasNew = false;
-                snap.forEach(child => {
-                    const o = child.val();
-                    if(o.riderId === currentRiderId && o.status !== 'DELIVERED') {
-                        count++; renderOrderCard(child.key, o, list);
-                        if(o.status === 'ASSIGNED') hasNew = true;
-                    }
-                });
-                if(hasNew && isSoundEnabled) alertSound.play().catch(e=>{}); else alertSound.pause();
-                document.getElementById('task-count').innerText = count + " টি";
-                empty.classList.toggle('hidden', count > 0);
-            });
-        }
-
-        // --- NEW ORDER CARD WITH FULL DETAILS ---
-        function renderOrderCard(id, o, container) {
-            let btns = o.status === 'ASSIGNED' ? 
-                `<div class="flex gap-2"><button onclick="updateStatus('${id}', 'PICKED_UP')" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-black">একসেপ্ট ও পিকআপ</button><button onclick="cancelOrder('${id}')" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-black">বাতিল</button></div>` : 
-                `<button onclick="updateStatus('${id}', 'DELIVERED')" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black">ডেলিভারি সম্পন্ন</button>`;
+            let sub = cart.reduce((a, b) => a + b.price, 0);
+            let total = sub + activeDeliveryCharge + selectedTip;
             
-            container.innerHTML += `
-            <div class="bg-white p-5 rounded-[2.5rem] shadow-sm border mb-4">
-                <div class="flex justify-between items-start mb-4">
-                    <span class="bg-gray-100 px-3 py-1 rounded-full text-[10px] font-black text-gray-500 uppercase">#${id.slice(-5)}</span>
-                    <span class="text-xs font-black text-red-600 uppercase italic">${o.status}</span>
-                </div>
+            document.getElementById('sub-total').innerText = "৳ " + sub;
+            document.getElementById('delivery-charge-display').innerText = "৳ " + activeDeliveryCharge;
+            document.getElementById('cart-total-price').innerText = "৳ " + total;
+            
+            const tipRow = document.getElementById('tip-display-row');
+            if(selectedTip > 0) {
+                tipRow.classList.remove('hidden');
+                document.getElementById('tip-amount-display').innerText = "৳ " + selectedTip;
+            } else {
+                tipRow.classList.add('hidden');
+            }
 
-                <!-- ADDRESS SECTION -->
-                <div class="space-y-4 mb-4">
-                    <div class="flex gap-3">
-                        <div class="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center flex-shrink-0"><i class="fas fa-utensils text-xs"></i></div>
-                        <div>
-                            <p class="text-[10px] font-bold text-gray-400 uppercase leading-none">রেস্টুরেন্ট</p>
-                            <p class="text-sm font-black text-gray-800">${o.restaurantName || 'N/A'}</p>
-                            <p class="text-[11px] font-bold text-gray-500 leading-tight">${o.restaurantAddress || 'ঠিকানা নেই'}</p>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-3">
-                        <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center flex-shrink-0"><i class="fas fa-user text-xs"></i></div>
-                        <div>
-                            <p class="text-[10px] font-bold text-gray-400 uppercase leading-none">কাস্টমার</p>
-                            <p class="text-sm font-black text-gray-800">${o.customerName || 'N/A'}</p>
-                            <p class="text-[11px] font-bold text-gray-500 leading-tight">${o.address || 'ঠিকানা নেই'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CHARGE SECTION -->
-                <div class="bg-gray-50 p-4 rounded-2xl border border-dashed mb-4">
-                    <div class="flex justify-between text-xs font-bold text-blue-600">
-                        <span>ডেলিভারি চার্জ:</span> <span>৳${o.deliveryCharge || 0}</span>
-                    </div>
-                    <div class="flex justify-between text-xs font-bold text-orange-500 mt-1">
-                        <span>টিপস:</span> <span>৳${o.tip || 0}</span>
-                    </div>
-                    <div class="flex justify-between text-sm font-black text-green-600 border-t mt-1 pt-1">
-                        <span>মোট ক্যাশ:</span> <span>৳${o.total || 0}</span>
-                    </div>
-                </div>
-
-                <!-- ACTIONS -->
-                <div class="flex gap-2">
-                    <a href="tel:${o.customerPhone}" class="w-12 h-12 bg-green-100 text-green-600 rounded-xl flex items-center justify-center"><i class="fas fa-phone-alt"></i></a>
-                    <button onclick="openChat('${id}','${o.customerName}','${o.customerPhone}')" class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center"><i class="fas fa-comment-dots"></i></button>
-                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.address)}')" class="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center"><i class="fas fa-directions"></i></button>
-                    ${btns}
-                </div>
-            </div>`;
+            const box = document.getElementById('cart-items-box'); 
+            box.innerHTML = cart.map((item, i) => `
+                <div class="flex justify-between p-3 bg-gray-50 rounded-xl font-bold text-sm">
+                    <span>${item.name}</span>
+                    <button onclick="removeFromCart(${i})" class="text-red-400"><i class="fas fa-trash-alt"></i></button>
+                </div>`).join('');
         }
 
-        function openChat(id, name, phone) {
-            activeChatOrderId = id; document.getElementById('chat-view').classList.remove('hidden'); document.getElementById('chat-customer-name').innerText = name; document.getElementById('customer-call-btn').href = "tel:" + phone;
-            db.ref(`chats/${id}`).off(); db.ref(`chats/${id}`).on('value', s => {
-                const b = document.getElementById('chat-messages'); b.innerHTML = "";
-                s.forEach(m => { const d = m.val(); const isMe = d.sender === 'rider'; b.innerHTML += `<div class="flex flex-col ${isMe?'items-end':'items-start'}"><div class="msg-box ${isMe?'msg-rider':'msg-customer'}">${d.text}</div></div>`; });
-                b.scrollTop = b.scrollHeight;
+        function removeFromCart(i) { 
+            cart.splice(i, 1); 
+            if(cart.length === 0) openCart(false); else openCart(true); 
+            updateFloatingCart(); updateCartBadge(); 
+        }
+
+        function setTip(a) { 
+            selectedTip = Number(a); 
+            document.querySelectorAll('.tip-btn').forEach(b => {
+                b.classList.toggle('tip-btn-active', b.id === 'tip-'+a);
+            }); 
+            openCart(true); 
+        }
+
+        function placeOrder() {
+            const sub = cart.reduce((a, b) => a + b.price, 0);
+            const total = sub + activeDeliveryCharge + selectedTip;
+            const orderData = { 
+                customerPhone: currentUser.phone, 
+                customerName: currentUser.name, 
+                address: currentUser.activeAddress, 
+                restaurantName: currentResName, 
+                items: cart, 
+                deliveryCharge: activeDeliveryCharge,
+                tip: selectedTip,
+                total: total, 
+                status: "PENDING", 
+                timestamp: firebase.database.ServerValue.TIMESTAMP 
+            };
+            db.ref('orders').push(orderData).then(() => { 
+                cart = []; 
+                selectedTip = 0;
+                updateFloatingCart(); 
+                updateCartBadge(); 
+                openCart(false); 
+                document.getElementById('order-success-screen').classList.remove('hidden'); 
             });
         }
 
-        function sendChatMessage() { const i = document.getElementById('chat-input'); if(!i.value.trim()) return; db.ref(`chats/${activeChatOrderId}`).push({sender:'rider', text:i.value.trim(), timestamp:Date.now()}); i.value=""; }
-        function closeChat() { db.ref(`chats/${activeChatOrderId}`).off(); document.getElementById('chat-view').classList.add('hidden'); }
-        function updateStatus(id, s) { db.ref(`orders/${id}`).update({status:s}); }
-        function cancelOrder(id) { if(confirm("বাতিল?")) db.ref(`orders/${id}`).update({status:'PENDING', riderId:null, riderName:null}); }
-
-        function loadHistory() {
-            db.ref('orders').on('value', snap => {
-                const list = document.getElementById('history-list'); list.innerHTML = ""; deliveredOrders = [];
-                let tInc = 0, tDel = 0, tCash = 0;
-                const today = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-
-                snap.forEach(child => {
-                    const o = child.val();
-                    if(o.riderId === currentRiderId && o.status === 'DELIVERED') {
-                        const orderDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(o.timestamp));
-                        if(orderDate === today) {
-                            const earn = (parseFloat(o.deliveryCharge) || 0) + (parseFloat(o.tip) || 0);
-                            deliveredOrders.push({ id: child.key, ...o });
-                            tDel++; tInc += earn; tCash += (parseFloat(o.total) || 0);
-                            list.innerHTML += `<div class="bg-white p-4 rounded-2xl flex justify-between items-center border border-gray-100 mb-2"><div><p class="font-bold text-gray-800 text-sm">${o.restaurantName}</p><p class="text-[9px] text-gray-400 font-bold">${orderDate}</p></div><p class="font-black text-green-600 text-sm">৳${earn}</p></div>`;
-                        }
-                    }
+        function openChat(id) {
+            activeChatOrderId = id; 
+            document.getElementById('chat-view').classList.remove('hidden');
+            db.ref(`chats/${id}`).on('value', s => {
+                const box = document.getElementById('chat-messages'); 
+                let html = "";
+                s.forEach(m => { 
+                    const msg = m.val(); 
+                    html += `<div class="flex flex-col ${msg.sender === 'customer' ? 'items-end' : 'items-start'}"><div class="msg-box ${msg.sender === 'customer' ? 'msg-customer' : 'msg-rider'}">${msg.text}</div></div>`; 
                 });
-                document.getElementById('total-del').innerText = tDel;
-                document.getElementById('total-income-stat').innerText = "৳ " + tInc;
-                document.getElementById('today-earning').innerText = "৳ " + tInc;
-                document.getElementById('wallet-cash').innerText = "৳ " + tCash;
-                document.getElementById('payment-delivery').innerText = "৳ " + tInc;
+                box.innerHTML = html; 
+                box.scrollTop = box.scrollHeight;
             });
         }
 
-        function showDetail(type) {
-            const m = document.getElementById('detail-modal'), c = document.getElementById('modal-content'); c.innerHTML = ""; let s = 0;
-            deliveredOrders.forEach(o => {
-                const v = type === 'wallet' ? parseFloat(o.total) : (parseFloat(o.deliveryCharge) + parseFloat(o.tip)); s += v;
-                c.innerHTML += `<div class="flex justify-between p-3 bg-gray-50 rounded-2xl border mb-2"><div><p class="font-black text-xs">${o.restaurantName}</p></div><p class="text-sm font-black">৳ ${v}</p></div>`;
-            });
-            document.getElementById('modal-footer-total').innerText = "Total: ৳ " + s; m.classList.remove('hidden');
-        }
-        function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
-        function switchTab(t) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab')); document.getElementById('tab-' + t).classList.add('active-tab'); document.querySelectorAll('nav button').forEach(b => b.classList.replace('nav-active', 'text-gray-300')); document.getElementById('nav-' + t).classList.replace('text-gray-300', 'nav-active'); }
-        
-        function logout() { 
-            stopLiveTracking(); alertSound.pause(); silentAudio.pause();
-            if(wakeLock) wakeLock.release();
-            db.ref('orders').off(); if(currentRiderId) db.ref(`riders/${currentRiderId}`).off();
-            localStorage.removeItem('khide_rider_phone'); location.reload(); 
+        function sendChatMessage() {
+            const inp = document.getElementById('chat-input'); 
+            if(!inp.value.trim()) return;
+            db.ref(`chats/${activeChatOrderId}`).push({ sender: 'customer', text: inp.value.trim() }); 
+            inp.value = "";
         }
 
-        const savedPhone = localStorage.getItem('khide_rider_phone');
-        if(savedPhone) loginRider(savedPhone);
+        function closeChat() { 
+            db.ref(`chats/${activeChatOrderId}`).off(); 
+            document.getElementById('chat-view').classList.add('hidden'); 
+        }
+
+        function updateAddressListUI() {
+            const list = document.getElementById('address-list');
+            const addrs = currentUser.addresses || {};
+            list.innerHTML = Object.keys(addrs).map(type => `
+                <div onclick="setActiveAddress('${type}')" class="p-3 rounded-2xl border ${addrs[type] === currentUser.activeAddress ? 'addr-active' : 'bg-gray-50 border-transparent'} flex items-center gap-3">
+                    <i class="fas ${type === 'বাসা' ? 'fa-home' : 'fa-briefcase'} text-gray-400"></i>
+                    <div class="flex-1">
+                        <h5 class="text-[11px] font-black">${type}</h5>
+                        <p class="text-[10px] text-gray-500 truncate">${addrs[type]}</p>
+                    </div>
+                </div>`).join('');
+            document.getElementById('user-address-header').innerText = currentUser.activeAddress;
+        }
+
+        function setActiveAddress(type) { 
+            db.ref(`customers/${currentUser.phone}/activeAddress`).set(currentUser.addresses[type]); 
+        }
+
+        function toggleAddrModal(s) { document.getElementById('addr-modal').classList.toggle('hidden', !s); }
+        function closeMenu() { document.getElementById('menu-view').classList.add('hidden'); }
+        function closeSuccessAndGoToOrders() { document.getElementById('order-success-screen').classList.add('hidden'); switchTab('orders'); }
+        function logout() { localStorage.clear(); location.reload(); }
+
+        const savedPhone = localStorage.getItem('khide_user_phone');
+        if(savedPhone) loginUser(savedPhone);
     </script>
 </body>
 </html>
